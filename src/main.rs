@@ -63,7 +63,6 @@ async fn main() -> Result<(), Error> {
         }
     };
 
-    let port: u16 = ecfg.port.unwrap_or(37550);
     let (wid_rx, epoch, health_rx) = info_from_ecfg(ecfg).await.unwrap();
     let i: Arc<Mutex<u16>> = Arc::new(Mutex::new(0));
     let i_ref = Arc::clone(&i);
@@ -80,10 +79,10 @@ async fn main() -> Result<(), Error> {
         let _ = health_rx.clone().changed().await.unwrap();
     }
 
-
     info!(
         "starting with worker id: {:?}, and epoch: {:?}",
-        wid_rx.borrow(), &epoch
+        wid_rx.borrow(),
+        &epoch
     );
 
     HttpServer::new(move || {
@@ -111,7 +110,7 @@ async fn main() -> Result<(), Error> {
             .route("/health", web::get().to(health))
     })
     .workers(workers)
-    .bind(("0.0.0.0", port))
+    .bind(("0.0.0.0", 8080))
     .unwrap()
     .run()
     .await

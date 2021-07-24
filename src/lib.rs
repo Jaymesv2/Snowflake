@@ -24,7 +24,6 @@ pub struct State {
 pub struct EnvConfig {
     pub cluster_mode: Option<bool>,
     pub redis_urls: Option<String>,
-    pub port: Option<u16>,
     pub epoch: Option<u64>,
     pub worker_id: Option<u32>,
 }
@@ -44,6 +43,7 @@ WORKER_ID: u8
 #[derive(Deserialize, Debug)]
 pub enum SetupError {
     FutureEpoch,
+    FailedRedisURLParse,
 }
 
 pub async fn info_from_ecfg(
@@ -71,15 +71,25 @@ pub async fn info_from_ecfg(
     let (health_tx, health_rx) = watch::channel(false);
 
     if ecfg.cluster_mode.is_some() && ecfg.cluster_mode.unwrap() {
-        /*if ecfg.redis_urls.is_none() {
-            return Error()
-        }*/
-        let redis_urls: Vec<String> = ecfg.redis_urls.unwrap().split(',').map(String::from).collect();
+        debug!("starting in cluster mode");
+        if ecfg.redis_urls.is_none() {
+            return Err(SetupError::FailedRedisURLParse);
+        }
 
+        let redis_urls: Vec<String> = ecfg
+            .redis_urls
+            .unwrap()
+            .split(',')
+            .map(String::from)
+            .collect();
+
+        debug!("trying to spawn the thing");
         task::spawn_blocking(move || {
             lock::manage(wid_tx, health_tx, redis_urls);
         });
+        debug!("got past spawning the thing");
     } else {
+        debug!("starting in standalone mode");
         let _ = health_tx.send(true);
     }
 

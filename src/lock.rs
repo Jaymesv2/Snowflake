@@ -2,9 +2,9 @@ extern crate rand;
 
 use tokio::sync::watch;
 
+use redsync::{RedisInstance, Redsync};
 use std::error::Error;
 use std::time::Duration;
-use redsync::{RedisInstance, Redsync};
 //use redis::Commands;
 use log::*;
 use rand::seq::SliceRandom;
@@ -19,13 +19,22 @@ in redis locks are named "SnowflakeIdMutex{id}"
 use rand::thread_rng;
 
 fn get_dlm(redis_urls: Vec<String>) -> Result<Redsync<RedisInstance>, Box<dyn Error>> {
-    Ok(Redsync::new( redis_urls.iter().map(|x| RedisInstance::new(&**x).expect("bad bad bad bad bad bad")  ).collect::<Vec<RedisInstance>>() ) )
+    Ok(Redsync::new(
+        redis_urls
+            .iter()
+            .map(|x| RedisInstance::new(&**x).expect("bad bad bad bad bad bad"))
+            .collect::<Vec<RedisInstance>>(),
+    ))
 }
-
+//TODO error handeling for when redis isnt avaliable
 pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_urls: Vec<String>) {
+    debug!("starting manager");
     let mut rng = thread_rng();
 
-    let mut conn = get_redis_client(redis_urls.clone()).expect("failed to connect to any redis clients").get_connection().unwrap();
+    let mut conn = get_redis_client(redis_urls.clone())
+        .expect("failed to connect to any redis clients")
+        .get_connection()
+        .unwrap();
 
     let mut pipe = redis::pipe();
     for x in 0..32 {
@@ -34,13 +43,13 @@ pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_
 
     let mut unused_ids: Vec<u32> = Vec::new();
     let r: Vec<bool> = pipe.query(&mut conn).unwrap();
-    
+
     for (x, i) in r.iter().enumerate().take(32) {
         if !i {
             unused_ids.push(x as u32);
         }
     }
-    
+
     // unused ids map will show available ids in a random order, the random order will be the order it will try to aquire the ids in.
     unused_ids.shuffle(&mut rng);
 
@@ -50,7 +59,12 @@ pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_
     let dlm = get_dlm(redis_urls).unwrap();
     //let id = *unused_ids.iter().next().unwrap();
 
-    let mut lock: redsync::Lock = redsync::Lock {resource: String::new(), value: String::new(), ttl: Duration::from_secs(1), expiry: Instant::now()};
+    let mut lock: redsync::Lock = redsync::Lock {
+        resource: String::new(),
+        value: String::new(),
+        ttl: Duration::from_secs(1),
+        expiry: Instant::now(),
+    };
     let mut id = 25555;
 
     for x in unused_ids {
@@ -59,10 +73,11 @@ pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_
             Ok(s) => {
                 id = x;
                 s
-            },
+            }
             Err(_e) => continue,
         };
-    };
+        break;
+    }
     // if it didnt get an id
     if id == 25555 {
         panic!("failed to aquire a lock on an id");
@@ -72,7 +87,10 @@ pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_
     let _ = health_tx.send(true);
 
     loop {
-        let x = lock.expiry.saturating_duration_since( Instant::now() ).as_secs();
+        let x = lock
+            .expiry
+            .saturating_duration_since(Instant::now())
+            .as_secs();
         if x != 0 {
             if x <= 5 {
                 lock = dlm.extend(&lock, Duration::from_secs(15)).unwrap();
@@ -96,7 +114,7 @@ fn get_redis_client(urls: Vec<String>) -> Result<redis::Client, ()> {
             Err(_e) => warn!("invalid urls: {}", &x),
         }
     }
-    Err(())   
+    Err(())
 }
 
 //fn check_available_ids()

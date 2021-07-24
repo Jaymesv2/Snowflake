@@ -38,6 +38,6 @@ RUN chown app:app snowflake
 
 USER app
 
-HEALTHCHECK --interval=10s --retries=2 --start-period=5s CMD [ "curl", "" ]
+HEALTHCHECK --interval=10s --retries=2 --start-period=5s CMD [ "curl", "-f", "http://localhost/37550", "||", "exit 1" ]
 
 CMD ["./snowflake"]
