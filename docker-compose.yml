@@ -1,0 +1,24 @@
+version: '3.8'
+services:
+    worker:
+        build: worker/
+        #ports:
+        #- 37550:37550
+        environment: 
+        - PORT=37550
+        - MASTER_URL=http://master:37551/
+        - EPOCH=1577858400 # first second of 2020
+        - LOG=debug
+        depends_on:
+        - master
+        deploy:
+            mode: replicated
+            replicas: 2
+            endpoint_mode: vip
+    master:
+        build: master/
+        ports:
+        - 37551:37551
+        environment:
+        - PORT=37551
+        - LOG=debug
