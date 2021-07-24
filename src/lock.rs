@@ -5,7 +5,7 @@ use tokio::sync::watch;
 use std::error::Error;
 use std::time::Duration;
 use redsync::{RedisInstance, Redsync};
-use redis::Commands;
+//use redis::Commands;
 use log::*;
 use rand::seq::SliceRandom;
 use std::time::Instant;
@@ -35,11 +35,12 @@ pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_
     let mut unused_ids: Vec<u32> = Vec::new();
     let r: Vec<bool> = pipe.query(&mut conn).unwrap();
     
-    for x in 0..32 {
-        if r[x] == false {
+    for (x, i) in r.iter().enumerate().take(32) {
+        if !i {
             unused_ids.push(x as u32);
         }
     }
+    
     // unused ids map will show available ids in a random order, the random order will be the order it will try to aquire the ids in.
     unused_ids.shuffle(&mut rng);
 
@@ -67,8 +68,8 @@ pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_
         panic!("failed to aquire a lock on an id");
     };
 
-    wid_tx.send(id);
-    health_tx.send(true);
+    let _ = wid_tx.send(id);
+    let _ = health_tx.send(true);
 
     loop {
         let x = lock.expiry.saturating_duration_since( Instant::now() ).as_secs();
@@ -78,7 +79,7 @@ pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_
             }
         } else {
             println!("lost lock");
-            health_tx.send(false);
+            let _ = health_tx.send(false);
             break;
         }
         std::thread::sleep(std::time::Duration::from_secs(1));

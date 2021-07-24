@@ -74,7 +74,7 @@ pub async fn info_from_ecfg(
         /*if ecfg.redis_urls.is_none() {
             return Error()
         }*/
-        let redis_urls: Vec<String> = ecfg.redis_urls.unwrap().split(",").map(|x| String::from(x)).collect();
+        let redis_urls: Vec<String> = ecfg.redis_urls.unwrap().split(',').map(String::from).collect();
 
         task::spawn_blocking(move || {
             lock::manage(wid_tx, health_tx, redis_urls);
@@ -83,5 +83,5 @@ pub async fn info_from_ecfg(
         let _ = health_tx.send(true);
     }
 
-    return Ok((wid_rx, UNIX_EPOCH + Duration::new(epoch, 0), health_rx));
+    Ok((wid_rx, UNIX_EPOCH + Duration::new(epoch, 0), health_rx))
 }

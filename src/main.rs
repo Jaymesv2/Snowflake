@@ -11,8 +11,6 @@ struct IdGen {
     id: Arc<Mutex<u16>>,
 }
 
-use tokio::task;
-
 use snowflake::{
     info_from_ecfg,
     routes::{get, health},
@@ -78,7 +76,7 @@ async fn main() -> Result<(), Error> {
     };
 
     // blocks until health channel updates (it shouldnt update until its healthy)
-    if healthy == false {
+    if !healthy {
         let _ = health_rx.clone().changed().await.unwrap();
     }
 
@@ -99,12 +97,12 @@ async fn main() -> Result<(), Error> {
 
         let state = State {
             healthy: health_rx.clone(),
-            proc_id: proc_id,
+            proc_id,
             worker_id: wid_rx.clone(),
-            epoch: epoch.clone(),
+            epoch,
             counter: Cell::new(0),
         };
-        
+
         debug!("starting worker with proc_id: {}", &state.proc_id);
         App::new()
             .app_data(state)
