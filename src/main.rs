@@ -1,3 +1,5 @@
+extern crate tokio;
+
 use actix_web::{middleware, web, App, HttpServer};
 use log::*;
 use std::io::{Error, ErrorKind};
@@ -8,6 +10,8 @@ use std::cell::Cell;
 struct IdGen {
     id: Arc<Mutex<u16>>,
 }
+
+use tokio::task;
 
 use snowflake::{
     info_from_ecfg,
@@ -43,7 +47,6 @@ fn init() {
 #[actix_web::main]
 async fn main() -> Result<(), Error> {
     init();
-
     let ecfg = match envy::from_env::<EnvConfig>() {
         Ok(s) => s,
         // this shouldnt happen ever. all of the env vars are optional and use defaults if not found
@@ -63,32 +66,27 @@ async fn main() -> Result<(), Error> {
     };
 
     let port: u16 = ecfg.port.unwrap_or(37550);
-
-    // this struct is kinda jank but it works :/
     let (wid_rx, epoch, health_rx) = info_from_ecfg(ecfg).await.unwrap();
-
     let i: Arc<Mutex<u16>> = Arc::new(Mutex::new(0));
     let i_ref = Arc::clone(&i);
-    let mut worker_id = *wid_rx.borrow();
-
-    // waits for the websocket to update the worker id if in cluster mode.
-    if worker_id == 33 {
-        let _ = wid_rx.clone().changed().await.unwrap();
-        worker_id = *wid_rx.borrow();
-    }
-
-    info!(
-        "starting with worker id: {:?}, and epoch: {:?}",
-        &worker_id, &epoch
-    );
-
-    let cpus = num_cpus::get();
-    let workers = if cpus >= 32 {
+    let healthy = *health_rx.borrow();
+    let workers = if num_cpus::get() >= 32 {
         warn!("This process was allocated more logical cpus than it supports, max is 32");
         32
     } else {
-        cpus
+        num_cpus::get()
     };
+
+    // blocks until health channel updates (it shouldnt update until its healthy)
+    if healthy == false {
+        let _ = health_rx.clone().changed().await.unwrap();
+    }
+
+
+    info!(
+        "starting with worker id: {:?}, and epoch: {:?}",
+        wid_rx.borrow(), &epoch
+    );
 
     HttpServer::new(move || {
         // assigns each worker a unique id between 0 - 32
@@ -98,6 +96,7 @@ async fn main() -> Result<(), Error> {
             *u += 1;
             *u - 1
         };
+
         let state = State {
             healthy: health_rx.clone(),
             proc_id: proc_id,
@@ -105,9 +104,10 @@ async fn main() -> Result<(), Error> {
             epoch: epoch.clone(),
             counter: Cell::new(0),
         };
+        
         debug!("starting worker with proc_id: {}", &state.proc_id);
         App::new()
-            .data(state)
+            .app_data(state)
             .wrap(middleware::Logger::default())
             .route("/", web::get().to(get))
             .route("/health", web::get().to(health))

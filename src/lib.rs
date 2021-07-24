@@ -2,11 +2,14 @@ use log::*;
 use serde::Deserialize;
 use std::{
     cell::Cell,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::watch;
+use tokio::task;
 
 pub mod routes;
+
+pub mod lock;
 
 #[derive(Clone, Debug)]
 pub struct State {
@@ -64,13 +67,21 @@ pub async fn info_from_ecfg(
         }
     };
 
-    let (tx, rx) = watch::channel(ecfg.worker_id.unwrap_or(0)); // new from epoch just returns this
+    let (wid_tx, wid_rx) = watch::channel(ecfg.worker_id.unwrap_or(0)); // new from epoch just returns this
     let (health_tx, health_rx) = watch::channel(false);
 
     if ecfg.cluster_mode.is_some() && ecfg.cluster_mode.unwrap() {
-        return Ok((rx, UNIX_EPOCH + Duration::new(epoch, 0), health_rx));
+        /*if ecfg.redis_urls.is_none() {
+            return Error()
+        }*/
+        let redis_urls: Vec<String> = ecfg.redis_urls.unwrap().split(",").map(|x| String::from(x)).collect();
+
+        task::spawn_blocking(move || {
+            lock::manage(wid_tx, health_tx, redis_urls);
+        });
     } else {
-        health_tx.send(true);
-        return Ok((rx, UNIX_EPOCH + Duration::new(epoch, 0), health_rx));
+        let _ = health_tx.send(true);
     }
+
+    return Ok((wid_rx, UNIX_EPOCH + Duration::new(epoch, 0), health_rx));
 }
