@@ -18,14 +18,41 @@ in redis locks are named "SnowflakeIdMutex{id}"
 */
 use rand::thread_rng;
 
-fn get_dlm(redis_urls: Vec<String>) -> Result<Redsync<RedisInstance>, Box<dyn Error>> {
-    Ok(Redsync::new(
-        redis_urls
-            .iter()
-            .map(|x| RedisInstance::new(&**x).expect("bad bad bad bad bad bad"))
-            .collect::<Vec<RedisInstance>>(),
-    ))
+fn get_dlm(redis_urls: Vec<String>) -> Result<Redsync<RedisInstance>, ()> {
+    let num_of_urls: f32 = redis_urls.len() as f32;
+    let instances: Vec<RedisInstance> = redis_urls
+        .iter()
+        .filter_map(|x| match RedisInstance::new(&**x) {
+            Ok(s) => Some(s),
+            Err(e) => {
+                warn!(
+                    "failed to connect to redis instance {} with error {}",
+                    &x, e
+                );
+                None
+            }
+        })
+        .collect();
+    // check to make sure that a majority of the redis instances connected successfully
+    if !(instances.len() >= ((num_of_urls / 2_f32).ceil() as usize) && instances.len() != 0) { // if it failed to connect to enough instances
+        println!("bad bad bad");
+        return Err(());
+    }
+
+    Ok(Redsync::new(instances))
 }
+
+fn get_redis_client(urls: Vec<String>) -> Result<redis::Client, ()> {
+    for x in urls {
+        // do some more error handling here
+        match redis::Client::open(x.clone()) {
+            Ok(s) => return Ok(s),
+            Err(_e) => warn!("invalid urls: {}", &x),
+        }
+    }
+    Err(())
+}
+
 //TODO error handeling for when redis isnt avaliable
 pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_urls: Vec<String>) {
     debug!("starting manager");
@@ -47,8 +74,7 @@ pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_
         .unwrap()
         .iter()
         .enumerate()
-        .filter(|x| !x.1)
-        .map(|(x, _)| x as u32)
+        .filter_map(|(i, b)| if !b { Some(i as u32) } else { None })
         .collect();
 
     // unused ids map will show available ids in a random order, the random order will be the order it will try to aquire the ids in.
@@ -101,18 +127,3 @@ pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
 }
-
-//tries all redis urls
-// () indicates none were reachable
-fn get_redis_client(urls: Vec<String>) -> Result<redis::Client, ()> {
-    for x in urls {
-        // do some more error handling here
-        match redis::Client::open(x.clone()) {
-            Ok(s) => return Ok(s),
-            Err(_e) => warn!("invalid urls: {}", &x),
-        }
-    }
-    Err(())
-}
-
-//fn check_available_ids()
