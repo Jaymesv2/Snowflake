@@ -41,20 +41,11 @@ pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_
         pipe.exists(format!("SnowflakeIdMutex{}", x));
     }
 
-    let mut unused_ids: Vec<u32> = Vec::new();
-    let r: Vec<bool> = pipe.query(&mut conn).unwrap();
-
-    for (x, i) in r.iter().enumerate().take(32) {
-        if !i {
-            unused_ids.push(x as u32);
-        }
-    }
+    //let mut unused_ids: Vec<u32> = Vec::new();
+    let mut unused_ids: Vec<u32> = pipe.query::<Vec<bool>>(&mut conn).unwrap().iter().enumerate().filter(|x| !x.1).map(|(x,_)| x as u32).collect();
 
     // unused ids map will show available ids in a random order, the random order will be the order it will try to aquire the ids in.
     unused_ids.shuffle(&mut rng);
-
-    println!("{:?}", r);
-    println!("{:?}", unused_ids);
 
     let dlm = get_dlm(redis_urls).unwrap();
     //let id = *unused_ids.iter().next().unwrap();
