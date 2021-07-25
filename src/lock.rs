@@ -42,7 +42,14 @@ pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_
     }
 
     //let mut unused_ids: Vec<u32> = Vec::new();
-    let mut unused_ids: Vec<u32> = pipe.query::<Vec<bool>>(&mut conn).unwrap().iter().enumerate().filter(|x| !x.1).map(|(x,_)| x as u32).collect();
+    let mut unused_ids: Vec<u32> = pipe
+        .query::<Vec<bool>>(&mut conn)
+        .unwrap()
+        .iter()
+        .enumerate()
+        .filter(|x| !x.1)
+        .map(|(x, _)| x as u32)
+        .collect();
 
     // unused ids map will show available ids in a random order, the random order will be the order it will try to aquire the ids in.
     unused_ids.shuffle(&mut rng);
