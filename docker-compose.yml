@@ -1,24 +1,34 @@
 version: '3.8'
 services:
     worker:
-        build: worker/
-        #ports:
-        #- 37550:37550
-        environment: 
-        - PORT=37550
-        - MASTER_URL=http://master:37551/
+        image: snowflake:latest
+        environment:
+        - CLUSTER_MODE=true
+        - REDIS_URLS=redis://redis1:6379,redis://redis2:6379,redis://redis3:6379
         - EPOCH=1577858400 # first second of 2020
         - LOG=debug
-        depends_on:
-        - master
+        depends_on: 
+        - redis1
+        - redis2
+        - redis3
         deploy:
             mode: replicated
-            replicas: 2
+            replicas: 32
             endpoint_mode: vip
-    master:
-        build: master/
+    redis1:
+        image: redis:latest
         ports:
-        - 37551:37551
-        environment:
-        - PORT=37551
-        - LOG=debug
+            - 6379:6379
+    redis2:
+        image: redis:latest
+        ports:
+            - 6380:6379
+    redis3:
+        image: redis:latest
+        ports:
+            - 6381:6379
+    
+    insights:
+      image: redislabs/redisinsight
+      ports:
+        - 8001:8001

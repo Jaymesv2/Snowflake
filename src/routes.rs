@@ -41,13 +41,13 @@ fn get_time_since(epoch: SystemTime) -> Result<u64, std::time::SystemTimeError> 
 
 // generates a unique snowflake
 pub async fn get(data: web::Data<State>, web::Query(query): web::Query<Query>) -> impl Responder {
-//pub async fn get(data: &mut State, web::Query(query): web::Query<Query>) -> impl Responder {
+    //pub async fn get(data: &mut State, web::Query(query): web::Query<Query>) -> impl Responder {
     //let r = *std::sync::Arc::get_mut(&mut data).unwrap();
     let n = data.counter.get();
     if n >= 4095 {
         data.counter.set(0);
     } else {
-        data.counter.set(n+1)
+        data.counter.set(n + 1)
     }
 
     let uuid = get_uuid(

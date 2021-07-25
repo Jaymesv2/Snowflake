@@ -10,9 +10,9 @@ RUN cargo init && rm Cargo.toml
 
 COPY Cargo.toml Cargo.toml
 # builds deps
-RUN cargo build --release 
+RUN cargo build --release
 
-RUN rm -f target/release/deps/snowflake_master*
+RUN rm -f target/release/deps/snowflake*
 
 COPY . .
 # builds actual application code
@@ -24,16 +24,20 @@ RUN cargo build --release
 
 FROM alpine:latest
 
+RUN apk --no-cache add curl
+
 RUN addgroup -g 1000 app
 
 RUN adduser -D -s /bin/sh -u 1000 -G app app
 
 WORKDIR /home/app/bin/
 
-COPY --from=build /usr/src/app/target/release/snowflake_master .
+COPY --from=build /usr/src/app/target/release/snowflake .
 
-RUN chown app:app snowflake_master
+RUN chown app:app snowflake
 
 USER app
 
-CMD ["./snowflake_master"]
+HEALTHCHECK --interval=10s --retries=2 --start-period=5s CMD [ "curl", "-f", "http://localhost/37550", "||", "exit 1" ]
+
+CMD ["./snowflake"]
