@@ -22,6 +22,7 @@ pub struct State {
 
 #[derive(Deserialize, Debug)]
 pub struct EnvConfig {
+    pub port: Option<u16>,
     pub cluster_mode: Option<bool>,
     pub redis_urls: Option<String>,
     pub epoch: Option<u64>,

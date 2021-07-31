@@ -18,6 +18,8 @@ COPY . .
 # builds actual application code
 RUN cargo build --release 
 
+RUN strip target/release/snowflake
+
 # ------------------------------------------------------------------------------
 # Final Stage
 # ------------------------------------------------------------------------------

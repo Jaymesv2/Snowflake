@@ -63,6 +63,12 @@ async fn main() -> Result<(), Error> {
         }
     };
 
+    let port: u16 = if let Some(s) = &ecfg.port {
+        *s
+    } else {
+        80
+    };
+
     let (wid_rx, epoch, health_rx) = info_from_ecfg(ecfg).await.unwrap();
     let i: Arc<Mutex<u16>> = Arc::new(Mutex::new(0));
     let i_ref = Arc::clone(&i);
@@ -110,7 +116,7 @@ async fn main() -> Result<(), Error> {
             .route("/health", web::get().to(health))
     })
     .workers(workers)
-    .bind(("0.0.0.0", 8080))
+    .bind(("0.0.0.0", port))
     .unwrap()
     .run()
     .await
