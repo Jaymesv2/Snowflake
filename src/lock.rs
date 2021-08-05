@@ -3,7 +3,6 @@ extern crate rand;
 use tokio::sync::watch;
 
 use redsync::{RedisInstance, Redsync};
-use std::error::Error;
 use std::time::Duration;
 //use redis::Commands;
 use log::*;
