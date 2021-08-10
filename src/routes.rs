@@ -19,6 +19,8 @@ pub enum Format {
     Octal,
     Binary,
     Decimal,
+    Base64,
+    Base64LE,
 }
 
 #[derive(Deserialize)]
@@ -64,6 +66,8 @@ pub async fn get(data: web::Data<State>, web::Query(query): web::Query<Query>) -
         Format::Octal => format!("{:o}", uuid),
         Format::Binary => format!("{:b}", uuid),
         Format::Decimal => format!("{}", uuid),
+        Format::Base64 => format!("{}", base64::encode(uuid.to_be_bytes())),
+        Format::Base64LE => format!("{}", base64::encode(uuid.to_le_bytes())),
     }
 }
 
