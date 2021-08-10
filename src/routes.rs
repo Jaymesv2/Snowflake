@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 // consts
 const WORKER_ID_SHIFT: i64 = 12;
-const DATACENTER_ID_SHIFT: i64 = 17;
+const PROCESS_ID_SHIFT: i64 = 17;
 const TIMESTAMP_LEFT_SHIFT: i64 = 22;
 
 const DEFAULT_FORMAT: Format = Format::Decimal;
@@ -26,10 +26,10 @@ pub struct Query {
     format: Option<Format>,
 }
 
-fn get_uuid(count: u16, datacenter_id: u16, worker_id: u32, time: u64) -> u64 {
+fn get_uuid(count: u16, process_id: u16, worker_id: u16, time: u64) -> u64 {
     //get the number of seconds since the epoch
     (time << TIMESTAMP_LEFT_SHIFT)
-        | ((datacenter_id as u64) << DATACENTER_ID_SHIFT)
+        | ((process_id as u64) << PROCESS_ID_SHIFT)
         | ((worker_id as u64) << WORKER_ID_SHIFT)
         | count as u64
 }
@@ -52,8 +52,8 @@ pub async fn get(data: web::Data<State>, web::Query(query): web::Query<Query>) -
 
     let uuid = get_uuid(
         n,
-        data.proc_id,
-        *data.worker_id.borrow(),
+        *data.proc_id.borrow(),
+        data.worker_id,
         get_time_since(data.epoch).expect("system time running backwards"),
     );
 
