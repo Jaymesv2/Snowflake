@@ -1,6 +1,6 @@
 extern crate tokio;
 
-use actix_web::{middleware, web, App, HttpServer};
+use actix_web::{middleware, web::{self, Data}, App, HttpServer};
 use log::*;
 use std::io::{Error, ErrorKind};
 use std::sync::{Arc, Mutex};
@@ -69,10 +69,11 @@ async fn main() -> Result<(), Error> {
         80
     };
 
-    let (wid_rx, epoch, health_rx) = info_from_ecfg(ecfg).await.unwrap();
+    let (pid_rx, epoch, health_rx) = info_from_ecfg(ecfg).await.unwrap();
     let i: Arc<Mutex<u16>> = Arc::new(Mutex::new(0));
     let i_ref = Arc::clone(&i);
     let healthy = *health_rx.borrow();
+    
     let workers = if num_cpus::get() >= 32 {
         warn!("This process was allocated more logical cpus than it supports, max is 32");
         32
@@ -86,31 +87,32 @@ async fn main() -> Result<(), Error> {
     }
 
     info!(
-        "starting with worker id: {:?}, and epoch: {:?}",
-        wid_rx.borrow(),
+        "starting with process id: {:?}, {} workers, and epoch: {:?}",
+        pid_rx.borrow(),
+        &workers,
         &epoch
     );
 
     HttpServer::new(move || {
         // assigns each worker a unique id between 0 - 32
         let i2 = i_ref.clone();
-        let proc_id = {
+        let worker_id = {
             let mut u = i2.lock().unwrap();
             *u += 1;
             *u - 1
-        };
+        }; 
 
         let state = State {
             healthy: health_rx.clone(),
-            proc_id,
-            worker_id: wid_rx.clone(),
+            proc_id: pid_rx.clone(),
+            worker_id,
             epoch,
             counter: Cell::new(0),
         };
 
-        debug!("starting worker with proc_id: {}", &state.proc_id);
+        debug!("starting worker id: {}", &state.worker_id);
         App::new()
-            .app_data(state)
+            .app_data(Data::new(state))
             .wrap(middleware::Logger::default())
             .route("/", web::get().to(get))
             .route("/health", web::get().to(health))

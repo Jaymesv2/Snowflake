@@ -15,32 +15,19 @@ pub mod lock;
 pub struct State {
     pub healthy: watch::Receiver<bool>,
     pub epoch: SystemTime, // this should be immutable
-    pub proc_id: u16,
-    pub worker_id: watch::Receiver<u32>,
+    pub proc_id: watch::Receiver<u16>,
+    pub worker_id: u16,
     pub counter: Cell<u16>, //
 }
 
 #[derive(Deserialize, Debug)]
 pub struct EnvConfig {
     pub port: Option<u16>,
-    pub cluster_mode: Option<bool>,
     pub redis_urls: Option<String>,
     pub epoch: Option<u64>,
-    pub worker_id: Option<u32>,
+    pub process_id: Option<u16>,
 }
-/*
-PORT: u16
-EPOCH: u64
 
-CLUSTER_MODE: bool
-   if cluster mode is true REDIS_URLS is required and WORKER_ID is ignored
-
-env vars:
-
-REDIS_URLS: STRING
-WORKER_ID: u8
-
-*/
 #[derive(Deserialize, Debug)]
 pub enum SetupError {
     FutureEpoch,
@@ -49,7 +36,7 @@ pub enum SetupError {
 
 pub async fn info_from_ecfg(
     ecfg: EnvConfig,
-) -> Result<(watch::Receiver<u32>, SystemTime, watch::Receiver<bool>), SetupError> {
+) -> Result<(watch::Receiver<u16>, SystemTime, watch::Receiver<bool>), SetupError> {
     let epoch = match ecfg.epoch {
         Some(s) => {
             if s > SystemTime::now()
@@ -68,14 +55,11 @@ pub async fn info_from_ecfg(
         }
     };
 
-    let (wid_tx, wid_rx) = watch::channel(ecfg.worker_id.unwrap_or(0)); // new from epoch just returns this
+    let (pid_tx, wid_rx) = watch::channel(ecfg.process_id.unwrap_or(0)); // new from epoch just returns this
     let (health_tx, health_rx) = watch::channel(false);
 
-    if ecfg.cluster_mode.is_some() && ecfg.cluster_mode.unwrap() {
+    if ecfg.redis_urls.is_some() {
         debug!("starting in cluster mode");
-        if ecfg.redis_urls.is_none() {
-            return Err(SetupError::FailedRedisURLParse);
-        }
 
         let redis_urls: Vec<String> = ecfg
             .redis_urls
@@ -84,13 +68,15 @@ pub async fn info_from_ecfg(
             .map(String::from)
             .collect();
 
-        debug!("trying to spawn the thing");
+        debug!("Trying to spawn the manager thread");
+        
         task::spawn_blocking(move || {
-            lock::manage(wid_tx, health_tx, redis_urls);
+            lock::manage(pid_tx, health_tx, redis_urls);
         });
-        debug!("got past spawning the thing");
+
+        debug!("Spawned manager thread");
     } else {
-        debug!("starting in standalone mode");
+        debug!("Starting in standalone mode");
         let _ = health_tx.send(true);
     }
 

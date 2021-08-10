@@ -53,7 +53,7 @@ fn get_redis_client(urls: Vec<String>) -> Result<redis::Client, ()> {
 }
 
 //TODO error handeling for when redis isnt avaliable
-pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_urls: Vec<String>) {
+pub fn manage(wid_tx: watch::Sender<u16>, health_tx: watch::Sender<bool>, redis_urls: Vec<String>) {
     debug!("starting manager");
     let mut rng = thread_rng();
 
@@ -67,13 +67,12 @@ pub fn manage(wid_tx: watch::Sender<u32>, health_tx: watch::Sender<bool>, redis_
         pipe.exists(format!("SnowflakeIdMutex{}", x));
     }
 
-    //let mut unused_ids: Vec<u32> = Vec::new();
-    let mut unused_ids: Vec<u32> = pipe
+    let mut unused_ids: Vec<u16> = pipe
         .query::<Vec<bool>>(&mut conn)
         .unwrap()
         .iter()
         .enumerate()
-        .filter_map(|(i, b)| if !b { Some(i as u32) } else { None })
+        .filter_map(|(i, b)| if !b { Some(i as u16) } else { None })
         .collect();
 
     // unused ids map will show available ids in a random order, the random order will be the order it will try to aquire the ids in.
