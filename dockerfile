@@ -1,45 +1,21 @@
-FROM rust:alpine3.13 as build
-
-RUN apk update
-
-RUN apk add cmake build-base protoc
-
-WORKDIR /usr/src/app
-
-RUN cargo init && rm Cargo.toml
-
-COPY Cargo.toml Cargo.toml
-# builds deps
-RUN cargo build --release
-
-RUN rm -f target/release/deps/snowflake*
-
+FROM lukemathwalker/cargo-chef:latest-rust-buster AS planner
+USER root
+WORKDIR /app
 COPY . .
-# builds actual application code
-RUN cargo build --release 
+RUN cargo chef prepare --recipe-path recipe.json
 
-RUN strip target/release/snowflake
+FROM lukemathwalker/cargo-chef:latest-rust-buster AS builder
+USER root
+WORKDIR /app
+RUN apt update
+RUN apt install -y cmake
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+COPY . .
+RUN cargo build --release --bin snowflake
 
-# ------------------------------------------------------------------------------
-# Final Stage
-# ------------------------------------------------------------------------------
-
-FROM alpine:latest
-
-RUN apk --no-cache add curl
-
-RUN addgroup -g 1000 app
-
-RUN adduser -D -s /bin/sh -u 1000 -G app app
-
-WORKDIR /home/app/bin/
-
-COPY --from=build /usr/src/app/target/release/snowflake .
-
-RUN chown app:app snowflake
-
-USER app
-
-HEALTHCHECK --interval=10s --retries=2 --start-period=5s CMD [ "curl", "-f", "http://localhost/37550/health", "||", "exit 1" ]
-
-CMD ["./snowflake"]
+FROM gcr.io/distroless/cc AS runtime
+#RUN addgroup -S myuser && adduser -S myuser -G myuser
+COPY --from=builder /app/target/release/snowflake /app/
+#USER myuser
+CMD ["/app/snowflake"]
