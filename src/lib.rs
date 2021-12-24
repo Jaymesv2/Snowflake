@@ -20,18 +20,37 @@ static COUNTER: AtomicU16 = AtomicU16::new(0);
 pub static HEALTHY: AtomicBool = AtomicBool::new(false);
 
 // these should all be initialized before serving requests so they can panic on startup rather than on first request
+#[cfg(not(feature = "distributed"))]
 lazy_static::lazy_static! {
     pub static ref WORKER_ID: AtomicU16 = {
-        let i = var("WORKER_ID")
-            .expect("environment variable \"WORKER_ID\" is not present")
-            .parse::<u16>()
-            .expect("non u16 value for environment variable WORKER_ID");
+        // both panics are there because the user tried to specify the env var 
+        let i = match var("WORKER_ID").map(|s| s.parse::<u16>()) {
+            Ok(Ok(s)) => s,
+            Ok(Err(_)) => {
+                panic!("non u16 value for environment variable WORKER_ID")
+            },
+            Err(std::env::VarError::NotPresent) => {
+                warn!("environment variable \"WORKER_ID\" is not present, using default, 0");
+                0
+            },
+            Err(e) => {
+                panic!("unable to get environment variable \"WORKER_ID\" because: {}", e);
+            }
+        };
+            
         if i >= 2u16.pow(WORKER_ID_SHIFT as u32) {
             panic!("WORKER_ID greater than the 10 bit integer limit");
         }
         AtomicU16::new(i)
     };
+}
 
+#[cfg(feature = "distributed")]
+lazy_static::lazy_static! {
+    pub static ref WORKER_ID: AtomicU16 = AtomicU16::new(0);
+}
+
+lazy_static::lazy_static! {
     pub static ref EPOCH: SystemTime = {
         let s = var("EPOCH")
             .expect("environment variable \"EPOCH\" is not present")
