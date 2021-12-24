@@ -1,3 +1,4 @@
+#![feature(cell_update)]
 use log::*;
 use serde::Deserialize;
 use std::{
@@ -69,7 +70,7 @@ pub async fn info_from_ecfg(
             .collect();
 
         debug!("Trying to spawn the manager thread");
-        
+
         task::spawn_blocking(move || {
             lock::manage(pid_tx, health_tx, redis_urls);
         });

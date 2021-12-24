@@ -1,15 +1,15 @@
 extern crate tokio;
 
-use actix_web::{middleware, web::{self, Data}, App, HttpServer};
+use actix_web::{
+    middleware,
+    web::{self, Data},
+    App, HttpServer,
+};
 use log::*;
 use std::io::{Error, ErrorKind};
 use std::sync::{Arc, Mutex};
 
 use std::cell::Cell;
-#[derive(Clone)]
-struct IdGen {
-    id: Arc<Mutex<u16>>,
-}
 
 use snowflake::{
     info_from_ecfg,
@@ -63,17 +63,13 @@ async fn main() -> Result<(), Error> {
         }
     };
 
-    let port: u16 = if let Some(s) = &ecfg.port {
-        *s
-    } else {
-        80
-    };
+    let port: u16 = if let Some(s) = &ecfg.port { *s } else { 80 };
 
     let (pid_rx, epoch, health_rx) = info_from_ecfg(ecfg).await.unwrap();
     let i: Arc<Mutex<u16>> = Arc::new(Mutex::new(0));
     let i_ref = Arc::clone(&i);
     let healthy = *health_rx.borrow();
-    
+
     let workers = if num_cpus::get() >= 32 {
         warn!("This process was allocated more logical cpus than it supports, max is 32");
         32
@@ -100,7 +96,7 @@ async fn main() -> Result<(), Error> {
             let mut u = i2.lock().unwrap();
             *u += 1;
             *u - 1
-        }; 
+        };
 
         let state = State {
             healthy: health_rx.clone(),

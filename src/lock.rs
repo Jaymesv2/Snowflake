@@ -33,7 +33,8 @@ fn get_dlm(redis_urls: Vec<String>) -> Result<Redsync<RedisInstance>, ()> {
         })
         .collect();
     // check to make sure that a majority of the redis instances connected successfully
-    if !(instances.len() >= ((num_of_urls / 2_f32).ceil() as usize) && instances.len() != 0) { // if it failed to connect to enough instances
+    if !(instances.len() >= ((num_of_urls / 2_f32).ceil() as usize) && instances.is_empty()) {
+        // if it failed to connect to enough instances
         println!("bad bad bad");
         return Err(());
     }
