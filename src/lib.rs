@@ -3,21 +3,22 @@ use std::{
     env::var,
     sync::{
         atomic::{AtomicBool, AtomicU16, Ordering},
-        Arc,
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tracing::*;
 
-use tokio::sync::Mutex;
-
+#[cfg(feature = "distributed")]
 pub mod lock;
 
 // consts
-const WORKER_ID_SHIFT: i64 = 12;
-const TIMESTAMP_LEFT_SHIFT: i64 = 22;
-
+const WORKER_ID_SHIFT: u8 = 12;
+const TIMESTAMP_LEFT_SHIFT: u8 = 22;
+const MASK: u16 = ((1u16) << WORKER_ID_SHIFT).overflowing_sub(1).0;
 // global variable :O
+static COUNTER: AtomicU16 = AtomicU16::new(0);
+pub static HEALTHY: AtomicBool = AtomicBool::new(false);
+
 // these should all be initialized before serving requests so they can panic on startup rather than on first request
 lazy_static::lazy_static! {
     pub static ref WORKER_ID: AtomicU16 = {
@@ -25,34 +26,25 @@ lazy_static::lazy_static! {
             .expect("environment variable \"WORKER_ID\" is not present")
             .parse::<u16>()
             .expect("non u16 value for environment variable WORKER_ID");
-        if i >= 1024 {
+        if i >= 2u16.pow(WORKER_ID_SHIFT as u32) {
             panic!("WORKER_ID greater than the 10 bit integer limit");
         }
         AtomicU16::new(i)
     };
-    pub static ref HEALTHY: AtomicBool = AtomicBool::new(false);
+
     pub static ref EPOCH: SystemTime = {
         let s = var("EPOCH")
             .expect("environment variable \"EPOCH\" is not present")
             .parse::<u64>()
-            .ok()
-            .and_then(|s| {
-                if s < SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs() as u64
-                {
-                    Some(s)
-                } else {
-                    warn!("Future Epoch, using 0 as default");
-                    None
-                }
-            });
-        if let Some(t) = s {
-             UNIX_EPOCH + Duration::new(t, 0)
-        } else {
-            UNIX_EPOCH
+            .expect("non integer environment variable \"EPOCH\"");
+        if s > SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as u64 
+        {
+            panic!("environment variable \"EPOCH\" set in the future");
         }
+        UNIX_EPOCH + Duration::new(s, 0)
     };
     pub static ref PORT: u16 = var("PORT")
         .expect("environment variable \"PORT\" is not present")
@@ -70,10 +62,10 @@ pub enum Format {
     Base64LE,
 }
 
+#[instrument(name = "Processing Request")]
 pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-    let counter = req.extensions().get::<Arc<Mutex<u16>>>().unwrap();
+    // this could probably be better :/
     let format = match (req.method(), req.uri().path(), req.uri().query()) {
-        // Serve some instructions at /
         (&Method::GET, "/", None) => Format::Decimal,
         (&Method::GET, "/", Some("fmt=lowerhex")) => Format::LowerHex,
         (&Method::GET, "/", Some("fmt=upperhex")) => Format::UpperHex,
@@ -89,12 +81,7 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, hyper:
             return Ok(not_found);
         }
     };
-    // i'm not exactly sure how to do do this with atomic which kinda sucks
-    let id = {
-        let mut l = counter.lock().await;
-        *l = (*l + 1) & (((1u16) << WORKER_ID_SHIFT).overflowing_sub(1).0);
-        *l
-    };
+    
     let time = SystemTime::now()
         .duration_since(*EPOCH)
         .expect("system time running backwards")
@@ -102,7 +89,7 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, hyper:
     //get the number of seconds since the epoch
     let uuid = (time << TIMESTAMP_LEFT_SHIFT)
         | ((WORKER_ID.load(Ordering::SeqCst) as u64) << WORKER_ID_SHIFT)
-        | id as u64;
+        | (COUNTER.fetch_add(1, Ordering::SeqCst) & MASK) as u64;
 
     // i would rather have each Format variant return a string and use that as the string literal for format! but format! doesnt let you use a variable as the string literal,
     let b = match format {
