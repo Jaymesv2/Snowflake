@@ -1,9 +1,7 @@
 use hyper::{Body, Method, Request, Response, StatusCode};
 use std::{
     env::var,
-    sync::{
-        atomic::{AtomicBool, AtomicU16, Ordering},
-    },
+    sync::atomic::{AtomicBool, AtomicU16, Ordering},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tracing::*;
@@ -23,7 +21,7 @@ pub static HEALTHY: AtomicBool = AtomicBool::new(false);
 #[cfg(not(feature = "distributed"))]
 lazy_static::lazy_static! {
     pub static ref WORKER_ID: AtomicU16 = {
-        // both panics are there because the user tried to specify the env var 
+        // both panics are there because the user tried to specify the env var
         let i = match var("WORKER_ID").map(|s| s.parse::<u16>()) {
             Ok(Ok(s)) => s,
             Ok(Err(_)) => {
@@ -37,7 +35,7 @@ lazy_static::lazy_static! {
                 panic!("unable to get environment variable \"WORKER_ID\" because: {}", e);
             }
         };
-            
+
         if i >= 2u16.pow(WORKER_ID_SHIFT as u32) {
             panic!("WORKER_ID greater than the 10 bit integer limit");
         }
@@ -59,7 +57,7 @@ lazy_static::lazy_static! {
         if s > SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs() as u64 
+            .as_secs() as u64
         {
             panic!("environment variable \"EPOCH\" set in the future");
         }
@@ -70,7 +68,6 @@ lazy_static::lazy_static! {
         .parse::<u16>()
         .expect("non u16 value for environment variable PORT");
 }
-
 pub enum Format {
     LowerHex,
     UpperHex,
@@ -100,7 +97,7 @@ pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, hyper:
             return Ok(not_found);
         }
     };
-    
+    // do a check to make sure that there is no
     let time = SystemTime::now()
         .duration_since(*EPOCH)
         .expect("system time running backwards")

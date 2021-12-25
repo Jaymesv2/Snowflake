@@ -12,7 +12,7 @@ RUN apt install -y cmake
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
-RUN cargo build --release --bin snowflake
+RUN cargo build --release --bin snowflake 
 
 FROM gcr.io/distroless/cc AS runtime
 #RUN addgroup -S myuser && adduser -S myuser -G myuser

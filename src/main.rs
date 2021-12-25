@@ -2,13 +2,13 @@ extern crate tokio;
 use hyper::Server;
 use snowflake::*;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
 use tower::{make::Shared, ServiceBuilder};
-use tower_http::add_extension::AddExtensionLayer;
-use tower_http::{LatencyUnit,trace::{TraceLayer, DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse}};
+use tower_http::{
+    trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
+    LatencyUnit,
+};
 use tracing::*;
 use tracing_subscriber::filter::EnvFilter;
-use std::sync::atomic::AtomicU16;
 
 #[cfg(all(not(feature = "standalone"), not(feature = "distributed")))]
 compile_error!("either \"standalone\" or \"distributed\" must be enabled");
@@ -28,8 +28,8 @@ async fn start() {
         s.split(',')
             .map(|s| Url::parse(s).expect("invalid url in environment variable\"REDIS_URLS\""))
             .collect()
-        };
-        
+    };
+
     if redis_urls.is_empty() {
         panic!("No redis urls provided");
     }
@@ -44,7 +44,6 @@ async fn start() {
         lock::manage(redis_urls);
     });
     debug!("Spawned manager thread");
-    
 }
 
 #[cfg(feature = "standalone")]
@@ -81,7 +80,7 @@ async fn init_tracer() {
     use opentelemetry::KeyValue;
     use opentelemetry::{global, sdk::propagation::TraceContextPropagator};
     use tracing_subscriber::layer::SubscriberExt;
-    use tracing_subscriber:: Registry;
+    use tracing_subscriber::Registry;
 
     let app_name = "Snowflake";
 
@@ -147,23 +146,17 @@ fn main() {
             &*WORKER_ID, &*EPOCH
         );
         let addr = ([0, 0, 0, 0], *PORT).into();
-        let counter = Arc::new(AtomicU16::new(0));
-        let service = ServiceBuilder::new()
-            .layer(
-                TraceLayer::new_for_http()
-                    .make_span_with(DefaultMakeSpan::new().include_headers(true))
-                    .on_request(DefaultOnRequest::new().level(Level::INFO))
-                    .on_response(
-                        DefaultOnResponse::new()
-                            .level(Level::INFO)
-                            .latency_unit(LatencyUnit::Micros),
-                    ),
-            )
-            .layer(AddExtensionLayer::new(counter));
+        let service = ServiceBuilder::new().layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().include_headers(true))
+                .on_request(DefaultOnRequest::new().level(Level::INFO))
+                .on_response(
+                    DefaultOnResponse::new()
+                        .level(Level::INFO)
+                        .latency_unit(LatencyUnit::Micros),
+                ),
+        );
         
-        #[cfg(feature = "distributed_tracing")]
-        let service = service.layer();
-
         let server = Server::bind(&addr).serve(Shared::new(service.service_fn(handle_request)));
         async fn shutdown_signal() {
             // Wait for the CTRL+C signal
