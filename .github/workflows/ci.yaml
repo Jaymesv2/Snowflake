@@ -13,17 +13,14 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - uses: Swatinem/rust-cache@v1
       - name: check check full
-        uses: Swatinem/rust-cache@v1
         run: check --no-default-features --features "distributed distributed-trace"
       - name: check distributed
-        uses: Swatinem/rust-cache@v1actions-rs/cargo@v1
         run: check --no-default-features --features "distributed"
       - name: check distributed-trace
-        uses: Swatinem/rust-cache@v1actions-rs/cargo@v1
         run: check --no-default-features --features "distributed-trace"
       - name: check no features
-        uses: Swatinem/rust-cache@v1actions-rs/cargo@v1
         run: check --no-default-features
       
 
