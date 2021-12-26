@@ -18,7 +18,7 @@ static COUNTER: AtomicU16 = AtomicU16::new(0);
 pub static HEALTHY: AtomicBool = AtomicBool::new(false);
 
 // these should all be initialized before serving requests so they can panic on startup rather than on first request
-#[cfg(not(feature = "distributed"))]
+
 lazy_static::lazy_static! {
     pub static ref WORKER_ID: AtomicU16 = {
         // both panics are there because the user tried to specify the env var
@@ -28,6 +28,7 @@ lazy_static::lazy_static! {
                 panic!("non u16 value for environment variable WORKER_ID")
             },
             Err(std::env::VarError::NotPresent) => {
+                #[cfg(not(feature = "distributed"))]
                 warn!("environment variable \"WORKER_ID\" is not present, using default, 0");
                 0
             },
@@ -41,11 +42,6 @@ lazy_static::lazy_static! {
         }
         AtomicU16::new(i)
     };
-}
-
-#[cfg(feature = "distributed")]
-lazy_static::lazy_static! {
-    pub static ref WORKER_ID: AtomicU16 = AtomicU16::new(0);
 }
 
 lazy_static::lazy_static! {
@@ -80,6 +76,12 @@ pub enum Format {
 
 #[instrument(name = "Processing Request")]
 pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+    if !HEALTHY.load(Ordering::SeqCst) {
+        let mut err = Response::default();
+        *err.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+        return Ok(err)
+    }
+
     // this could probably be better :/
     let format = match (req.method(), req.uri().path(), req.uri().query()) {
         (&Method::GET, "/", None) => Format::Decimal,
