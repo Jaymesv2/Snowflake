@@ -15,13 +15,13 @@ jobs:
           override: true
       - uses: Swatinem/rust-cache@v1
       - name: check check full
-        run: check --no-default-features --features "distributed distributed-trace"
+        run: cargo check --no-default-features --features "distributed distributed-trace"
       - name: check distributed
-        run: check --no-default-features --features "distributed"
+        run: cargo check --no-default-features --features "distributed"
       - name: check distributed-trace
-        run: check --no-default-features --features "distributed-trace"
+        run: cargo check --no-default-features --features "distributed-trace"
       - name: check no features
-        run: check --no-default-features
+        run: cargo check --no-default-features
       
 
   test:
