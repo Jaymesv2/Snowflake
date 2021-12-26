@@ -10,9 +10,6 @@ use tower_http::{
 use tracing::*;
 use tracing_subscriber::filter::EnvFilter;
 
-#[cfg(all(not(feature = "distributed"), not(feature = "standalone")))]
-compile_error!("one or both of features distributed or standalone must be enabled");
-
 #[cfg(feature = "distributed-trace")]
 mod trace {
     use tower_http::trace::MakeSpan;
@@ -67,8 +64,7 @@ async fn start() {
             Ok(Err(e)) => panic!("failed to parse redis urls with error: {}", e),
             Err(std::env::VarError::NotPresent) => {
                 HEALTHY.store(true, Ordering::SeqCst);
-                #[cfg(not(feature = "standalone"))]
-                panic!("No redis urls provided");
+                warn!("No redis urls provided, starting in standalone mode");
             }
             Err(std::env::VarError::NotUnicode(e)) => {
                 panic!(
@@ -79,7 +75,7 @@ async fn start() {
         }
     }
     // exclusivly standalone
-    #[cfg(all(not(feature = "distributed"), feature = "standalone"))]
+    #[cfg(not(feature = "distributed"))]
     HEALTHY.store(true, Ordering::SeqCst);
 }
 
@@ -122,26 +118,15 @@ async fn init_tracer() {
         tracing_opentelemetry::layer().with_tracer(tracer)
     };
 
-    #[cfg(feature = "fmt-trace")]
     let fmt_layer = tracing_subscriber::fmt::layer().with_target(false);
 
-    #[cfg(all(feature = "distributed-trace", not(feature = "fmt-trace")))]
-    let subscriber = tracing_subscriber::registry()
-        .with(filter_layer)
-        .with(otel_layer);
-
-    #[cfg(all(feature = "fmt-trace", not(feature = "distributed-trace")))]
     let subscriber = tracing_subscriber::registry()
         .with(filter_layer)
         .with(fmt_layer);
 
-    #[cfg(all(feature = "fmt-trace", feature = "distributed-trace"))]
-    let subscriber = tracing_subscriber::registry()
-        .with(filter_layer)
-        .with(fmt_layer)
-        .with(otel_layer);
+    #[cfg(feature = "distributed-trace")]
+    let subscriber = subscriber.with(otel_layer);
 
-    #[cfg(any(feature = "fmt-trace", feature = "distributed-trace"))]
     tracing::subscriber::set_global_default(subscriber)
         .expect("Failed to install `tracing` subscriber.");
 }

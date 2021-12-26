@@ -23,14 +23,28 @@ lazy_static::lazy_static! {
     pub static ref WORKER_ID: AtomicU16 = {
         // both panics are there because the user tried to specify the env var
         let i = match var("WORKER_ID").map(|s| s.parse::<u16>()) {
-            Ok(Ok(s)) => s,
+            Ok(Ok(s)) => {
+                #[cfg(feature = "distributed")]
+                if Err(std::env::VarError::NotPresent) != var("REDIS_URLS") {
+                    warn!("environment variable \"WORKER_ID\" was specified but will be overridden");
+                }
+                s
+            },
             Ok(Err(_)) => {
-                panic!("non u16 value for environment variable WORKER_ID")
+                panic!("non u16 value in environment variable \"WORKER_ID\"")
             },
             Err(std::env::VarError::NotPresent) => {
                 #[cfg(not(feature = "distributed"))]
-                warn!("environment variable \"WORKER_ID\" is not present, using default, 0");
-                0
+                panic!("environment variable \"WORKER_ID\" is not present");
+
+                #[cfg(feature = "distributed")]
+                if let Err(std::env::VarError::NotPresent) = var("REDIS_URLS") {
+                    panic!("environment variable \"REDIS_URLS\" is not set")
+                } else {
+                    // placeholder which will get overridden by the start function
+                    0
+                }
+
             },
             Err(e) => {
                 panic!("unable to get environment variable \"WORKER_ID\" because: {}", e);
@@ -74,7 +88,7 @@ pub enum Format {
     Base64LE,
 }
 
-#[instrument(name = "Processing Request", level = "debug")]
+#[instrument(name = "Processing Request", level = Level::DEBUG)]
 pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     if !HEALTHY.load(Ordering::SeqCst) {
         let mut err = Response::default();
