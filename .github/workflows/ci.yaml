@@ -13,11 +13,11 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - name: check no features
+      - name: check check full
         uses: actions-rs/cargo@v1
         with:
           command: check 
-          args: --no-default-features 
+          args: --no-default-features --features "distributed distributed-trace"
       - name: check distributed
         uses: actions-rs/cargo@v1
         with:
@@ -28,11 +28,11 @@ jobs:
         with:
           command: check 
           args: --no-default-features --features "distributed-trace"
-      - name: check check full
+      - name: check no features
         uses: actions-rs/cargo@v1
         with:
           command: check 
-          args: --no-default-features --features "distributed distributed-trace"
+          args: --no-default-features 
       
 
   test:
@@ -76,11 +76,11 @@ jobs:
           toolchain: stable
           override: true
       - run: rustup component add clippy
-      - name: clippy no features
+      - name: clippy full
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --no-default-features -- -D warnings
+          args: --no-default-features --features "distributed distributed-trace" -- -D warnings 
       - name: clippy distributed
         uses: actions-rs/cargo@v1
         with:
@@ -91,8 +91,8 @@ jobs:
         with:
           command: clippy
           args: --no-default-features --features "distributed-trace" -- -D warnings
-      - name: clippy full
+      - name: clippy no features
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --no-default-features --features "distributed distributed-trace" -- -D warnings 
+          args: --no-default-features -- -D warnings
