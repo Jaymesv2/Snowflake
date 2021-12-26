@@ -4,7 +4,7 @@ use snowflake::*;
 use std::sync::atomic::Ordering;
 use tower::{make::Shared, ServiceBuilder};
 use tower_http::{
-    trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
+    trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
     LatencyUnit,
 };
 use tracing::*;
@@ -13,38 +13,33 @@ use tracing_subscriber::filter::EnvFilter;
 #[cfg(all(not(feature = "distributed"), not(feature = "standalone")))]
 compile_error!("one or both of features distributed or standalone must be enabled");
 
-/*
-#[cfg(feature = "distributed")]
-async fn start() {
-    use tokio::task;
-    use url::Url;
-    let redis_urls: Vec<Url> = {
-        let s = std::env::var("REDIS_URLS").expect("redis urls env var is not avaliable");
-        s.split(',')
-            .map(|s| Url::parse(s).expect("invalid url in environment variable\"REDIS_URLS\""))
-            .collect()
-    };
+#[cfg(feature = "distributed-trace")]
+mod trace {
+    use tower_http::trace::MakeSpan;
+    //use opentelemetry::sdk::propagation::TextMapCompositePropagator;
+    use opentelemetry::{global::get_text_map_propagator, trace::SpanKind};
+    use opentelemetry_http::HeaderExtractor;
+    use tracing::*;
+    use tracing_opentelemetry::OpenTelemetrySpanExt;
+    #[derive(Clone, Default)]
+    pub struct OtelMakeSpan {}
 
-    if redis_urls.is_empty() {
-        panic!("No redis urls provided");
+    impl<B> MakeSpan<B> for OtelMakeSpan {
+        fn make_span(&mut self, request: &hyper::Request<B>) -> Span {
+            let span = info_span!(
+                "Http Request",
+                "otel.kind" = %SpanKind::Server,
+                method = %request.method(),
+                uri = %request.uri(),
+                version = ?request.version(),
+                headers = ?request.headers(),
+            );
+            let cx = get_text_map_propagator(|p| p.extract(&HeaderExtractor(request.headers())));
+            span.set_parent(cx);
+            span
+        }
     }
-
-    if redis_urls.len() > 3 {
-        warn!("using less than 3 redis instances could lead to ");
-    }
-
-    debug!("starting in cluster mode");
-    debug!("Trying to spawn the manager thread");
-    task::spawn_blocking(move || {
-        lock::manage(redis_urls);
-    });
-    debug!("Spawned manager thread");
 }
-
-#[cfg(feature = "standalone")]
-async fn start() {
-    HEALTHY.store(true, Ordering::SeqCst);
-}*/
 
 async fn start() {
     //distributed, or both
@@ -55,7 +50,7 @@ async fn start() {
         use url::Url;
         match std::env::var("REDIS_URLS").map(|s| {
             s.split(',')
-                .map(|s| Url::parse(s))
+                .map(Url::parse)
                 .collect::<Result<Vec<Url>, ParseError>>()
         }) {
             Ok(Ok(redis_urls)) if !redis_urls.is_empty() => {
@@ -174,7 +169,6 @@ fn main() {
                 _ => debug!("Failed to load .env file with error: \n{:?}", e),
             },
         };
-
         start().await;
         // blocks until health channel updates (it shouldnt update until its healthy)
         while !HEALTHY.load(Ordering::SeqCst) {
@@ -185,17 +179,20 @@ fn main() {
             "starting with worker id: {:?}, and epoch: {:?}",
             &*WORKER_ID, &*EPOCH
         );
+
+        let trace_layer = TraceLayer::new_for_http()
+            .on_request(DefaultOnRequest::new().level(Level::INFO))
+            .on_response(
+                DefaultOnResponse::new()
+                    .level(Level::INFO)
+                    .latency_unit(LatencyUnit::Micros),
+            );
+
+        #[cfg(feature = "distributed-trace")]
+        let trace_layer = trace_layer.make_span_with(trace::OtelMakeSpan::default());
+
         let addr = ([0, 0, 0, 0], *PORT).into();
-        let service = ServiceBuilder::new().layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().include_headers(true))
-                .on_request(DefaultOnRequest::new().level(Level::INFO))
-                .on_response(
-                    DefaultOnResponse::new()
-                        .level(Level::INFO)
-                        .latency_unit(LatencyUnit::Micros),
-                ),
-        );
+        let service = ServiceBuilder::new().layer(trace_layer);
 
         let server = Server::bind(&addr).serve(Shared::new(service.service_fn(handle_request)));
         async fn shutdown_signal() {

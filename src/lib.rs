@@ -74,12 +74,12 @@ pub enum Format {
     Base64LE,
 }
 
-#[instrument(name = "Processing Request")]
+#[instrument(name = "Processing Request", level = "debug")]
 pub async fn handle_request(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     if !HEALTHY.load(Ordering::SeqCst) {
         let mut err = Response::default();
         *err.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
-        return Ok(err)
+        return Ok(err);
     }
 
     // this could probably be better :/
