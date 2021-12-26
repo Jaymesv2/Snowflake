@@ -1,0 +1,79 @@
+on: 
+  push:
+  pull_request:
+  workflow_call:
+
+name: Continuous integration
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: Swatinem/rust-cache@v1
+      - name: check check full
+        run: cargo check --no-default-features --features "distributed distributed-trace"
+      - name: check distributed
+        run: cargo check --no-default-features --features "distributed"
+      - name: check distributed-trace
+        run: cargo check --no-default-features --features "distributed-trace"
+      - name: check no features
+        run: cargo check --no-default-features
+      
+
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: Swatinem/rust-cache@v1
+      - name: test
+        run: cargo test
+
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - run: rustup component add rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - run: rustup component add clippy
+      - uses: Swatinem/rust-cache@v1
+      - name: clippy full
+        run: cargo clippy --no-default-features --features "distributed distributed-trace" -- -D warnings 
+      - name: clippy distributed
+        run: cargo clippy --no-default-features --features "distributed" -- -D warnings
+      - name: clippy distributed-trace
+        run: cargo clippy --no-default-features --features "distributed-trace" -- -D warnings
+      - name: clippy no features
+        run: cargo clippy --no-default-features -- -D warnings
