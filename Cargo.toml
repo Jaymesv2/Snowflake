@@ -7,11 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["standalone", "fmt-trace", "dotenv", "distributed-trace"]
-standalone = []
+default = ["dotenv", "distributed-trace", "distributed"]
+# enables getting worker id using redlock
 distributed = ["redis", "redsync"]
-
-fmt-trace = []
+# enables distributed tracing using opentelemetry
 distributed-trace = ["tracing-opentelemetry", "opentelemetry", "opentelemetry-otlp", "opentelemetry-http"]
 
 [dependencies]
