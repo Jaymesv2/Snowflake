@@ -14,25 +14,17 @@ jobs:
           toolchain: stable
           override: true
       - name: check check full
-        uses: actions-rs/cargo@v1
-        with:
-          command: check 
-          args: --no-default-features --features "distributed distributed-trace"
+        uses: Swatinem/rust-cache@v1
+        run: check --no-default-features --features "distributed distributed-trace"
       - name: check distributed
-        uses: actions-rs/cargo@v1
-        with:
-          command: check 
-          args: --no-default-features --features "distributed"
+        uses: Swatinem/rust-cache@v1actions-rs/cargo@v1
+        run: check --no-default-features --features "distributed"
       - name: check distributed-trace
-        uses: actions-rs/cargo@v1
-        with:
-          command: check 
-          args: --no-default-features --features "distributed-trace"
+        uses: Swatinem/rust-cache@v1actions-rs/cargo@v1
+        run: check --no-default-features --features "distributed-trace"
       - name: check no features
-        uses: actions-rs/cargo@v1
-        with:
-          command: check 
-          args: --no-default-features 
+        uses: Swatinem/rust-cache@v1actions-rs/cargo@v1
+        run: check --no-default-features
       
 
   test:
