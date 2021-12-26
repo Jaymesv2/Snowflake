@@ -76,19 +76,19 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings --no-default-features
+          args: --no-default-features -- -D warnings
       - name: clippy distributed
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings --no-default-features --features "distributed"
+          args: --no-default-features --features "distributed" -- -D warnings
       - name: clippy distributed-trace
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings --no-default-features --features "distributed-trace"
+          args: --no-default-features --features "distributed-trace" -- -D warnings
       - name: clippy full
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings --no-default-features --features "distributed distributed-trace"
+          args: --no-default-features --features "distributed distributed-trace" -- -D warnings 
