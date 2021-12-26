@@ -34,9 +34,9 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
+      - uses: Swatinem/rust-cache@v1
+      - name: test
+        run: cargo test
 
   fmt:
     name: Rustfmt
@@ -65,23 +65,12 @@ jobs:
           toolchain: stable
           override: true
       - run: rustup component add clippy
+      - uses: Swatinem/rust-cache@v1
       - name: clippy full
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --no-default-features --features "distributed distributed-trace" -- -D warnings 
+        run: cargo clippy --no-default-features --features "distributed distributed-trace" -- -D warnings 
       - name: clippy distributed
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --no-default-features --features "distributed" -- -D warnings
+        run: cargo clippy --no-default-features --features "distributed" -- -D warnings
       - name: clippy distributed-trace
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --no-default-features --features "distributed-trace" -- -D warnings
+        run: cargo clippy --no-default-features --features "distributed-trace" -- -D warnings
       - name: clippy no features
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --no-default-features -- -D warnings
+        run: cargo clippy --no-default-features -- -D warnings
