@@ -93,15 +93,30 @@ async fn init_tracer() {
         };
         use opentelemetry::KeyValue;
         use opentelemetry::{global, sdk::propagation::TraceContextPropagator};
+        use opentelemetry_otlp::WithExportConfig;
+        use std::time::Duration;
 
         let app_name = "Snowflake";
 
         global::set_text_map_propagator(TraceContextPropagator::new());
-
+        //let mut map = Metadata::with_capacity(3);
+        //map.insert("something", "value);
         let otlp_exporter = opentelemetry_otlp::new_exporter().tonic();
         // Then pass it into pipeline builder
+        let endpoint = std::env::var("OTLP_ENDPOINT").unwrap_or_else(|_| {
+            warn!(
+                "environment variable \" OTLP_ENDPOINT\" not set, using default \"127.0.0.1:4317\""
+            );
+            "127.0.0.1:4317".to_string()
+        });
         let tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
+            .with_exporter(
+                opentelemetry_otlp::new_exporter()
+                    .tonic()
+                    .with_endpoint(&endpoint)
+                    .with_timeout(Duration::from_secs(5)), //with_metadata(map)
+            )
             .with_trace_config(
                 trace::config()
                     .with_sampler(Sampler::AlwaysOn)
