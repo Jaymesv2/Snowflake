@@ -104,8 +104,8 @@ async fn init_tracer() {
         let otlp_exporter = opentelemetry_otlp::new_exporter().tonic();
         // Then pass it into pipeline builder
         let endpoint = std::env::var("OTLP_ENDPOINT").unwrap_or_else(|_| {
-            warn!(
-                "environment variable \" OTLP_ENDPOINT\" not set, using default \"127.0.0.1:4317\""
+            println!(
+                "environment variable \"OTLP_ENDPOINT\" not set, using default \"127.0.0.1:4317\""
             );
             "127.0.0.1:4317".to_string()
         });
